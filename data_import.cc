@@ -2,17 +2,21 @@
 #include <cstdlib>
 #include <cstdio>
 #include "leveldb/db.h"
+#include "leveldb/write_batch.h"
 
 const char* DBPATH = "/home/abcdabcd987/test.db";
 const int KEYSIZE = 4 * 1024;
+const int BATCHSIZE = 1 * 1024 * 1024;
 
 leveldb::DB* db;
 leveldb::Status ok;
+leveldb::WriteBatch *batch;
 leveldb::WriteOptions write_options;
 FILE* fp;
 char key[KEYSIZE], *value;
 bool eof, valid;
-int cnt_line, cnt_valid, cnt_success;
+int cnt_batch;
+int cnt_line, cnt_valid, cnt_write, cnt_fail;
 
 inline bool is_valid_domain_char(const char c) {
     return ('a' <= c && c <= 'z')
@@ -52,11 +56,21 @@ void getrecord() {
     ++cnt_valid;
 }
 
+void batch_write() {
+    ++cnt_write;
+    ok = db->Write(write_options, batch);
+    if (!ok.ok()) ++cnt_fail;
+    delete batch;
+    cnt_batch = 0;
+}
+
 void insert() {
     getrecord();
     if (!valid) return;
-    ok = db->Put(write_options, key, value);
-    if (ok.ok()) ++cnt_success;
+    batch->Put(key, value);
+    if (++cnt_batch < BATCHSIZE) return;
+    batch_write();
+    batch = new leveldb::WriteBatch();
 }
 
 int main(int argc, char** argv) {
@@ -74,10 +88,12 @@ int main(int argc, char** argv) {
         fprintf(stderr, "%s\n", ok.ToString().c_str());
         return 1;
     }
+    batch = new leveldb::WriteBatch();
 
     while (!eof) insert();
+    batch_write();
 
-    printf("%s\t\tline: %d\tvalid: %d\tsuccess: %d\t\n", argv[1], cnt_line, cnt_valid, cnt_success);
+    printf("%s\tline: %d\tvalid: %d\twrite: %d\tfail: %d\n", argv[1], cnt_line, cnt_valid, cnt_write, cnt_fail);
 
     delete db;
     fclose(fp);
