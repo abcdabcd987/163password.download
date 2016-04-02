@@ -1,4 +1,5 @@
 #!/bin/sh
 
 DATAPATH=/home/abcdabcd987/test/
-find $DATAPATH -type f -exec node data_import.js {} \;
+g++ -Wall data_import.cc /usr/local/lib/libleveldb.a -lpthread
+find $DATAPATH -type f -exec ./a.out {} \;
